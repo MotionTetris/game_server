@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package blockEvent
+
+message GameStatus = {
+    uint64 ticks = 1;
+    string event = 2;
+}
