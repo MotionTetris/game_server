@@ -6,12 +6,14 @@ import {
   ConnectedSocket,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { max } from 'rxjs';
 import { Server, Socket } from 'socket.io';
 import { KeyFrameEvent } from './packet';
 
 type RoomInfo = {
   players: Map<string, string>;
   gameOver: Set<string>;
+  max:number;
 }
 
 @WebSocketGateway(3001, {
@@ -43,20 +45,26 @@ export class GameGateway {
   async handleConnection(client: Socket) {
     try {
       const nickname: string = await this.verifyToken(client);
-      const roomIdParam: string | string[] = client.handshake.query.roomId;
-      const roomId = parseInt(Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam);
+      // client.handshake.query의 실제 타입에 따라 타입을 지정합니다.
+      const roomId:string| string[] = client.handshake.query.roomId;
+      const max:string| string[] = client.handshake.query.max;
+      // roomIdParam과 maxParam을 string[] 타입으로 처리합니다.
+      const roomIdParam: number = parseInt(Array.isArray(roomId) ? roomId[0] : roomId);
+      const maxParam: number = parseInt(Array.isArray(max) ? max[0] : max);
 
-      const hasRoom: boolean = this.rooms.has(roomId);
+
+      const hasRoom: boolean = this.rooms.has(roomIdParam);
       if (!hasRoom) {
         const data:RoomInfo = {
           players: new Map(),
           gameOver: new Set(),
+          max:maxParam
         }
         data.players.set(nickname, client.id)
-        this.rooms.set(roomId, data);
+        this.rooms.set(roomIdParam, data);
       }
 
-      const roomInfo: RoomInfo = this.rooms.get(roomId);
+      const roomInfo: RoomInfo = this.rooms.get(roomIdParam);
       roomInfo.players.set(nickname, client.id)
       client.data = {
         nickname,
@@ -66,8 +74,9 @@ export class GameGateway {
       client.broadcast.to(`${roomId}`).emit('userJoined', nickname);
       client.emit('myName',nickname)
       console.log('유저 조인', roomInfo.players.size, roomInfo.players);
-      if (roomInfo.players.size == 2) {
-        this.server.to(`${roomId}`).emit('gameStart', 'userStart');
+      if (roomInfo.players.size == maxParam) {
+        console.log(roomId,'번방 게임 시작!')
+        this.server.to(`${roomId}`).emit('go', 'GO!');
       }
     } catch (e) {
       console.log(e);
