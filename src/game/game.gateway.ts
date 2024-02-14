@@ -19,7 +19,7 @@ type RoomInfo = {
   lastActivate: number;
 }
 
-@WebSocketGateway(3005, {
+@WebSocketGateway(3001, {
   cors: {
     origin: '*',
     credentail: true,
