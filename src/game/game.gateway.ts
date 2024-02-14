@@ -6,33 +6,60 @@ import {
   ConnectedSocket,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { max } from 'rxjs';
 import { Server, Socket } from 'socket.io';
 import { KeyFrameEvent } from './packet';
+import axios from 'axios';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 type RoomInfo = {
   players: Map<string, string>;
   gameOver: Set<string>;
-  max:number;
+  max: number;
+  scores: Map<string, number>;
+  lastActivate: number;
 }
 
-@WebSocketGateway(3001, {
+@WebSocketGateway(3005, {
   cors: {
     origin: '*',
     credentail: true,
   },
 })
 export class GameGateway {
-  constructor(private jwtService: JwtService) {}
+
+  private roomTimers: Map<number, NodeJS.Timeout> = new Map();
+  private items = [
+    "BOMB", "FOG", "FLIP", "ROTATE_RIGHT", "ROTATE_LEFT",
+  ];
+
+  constructor(private jwtService: JwtService) { }
 
   @WebSocketServer()
   server: Server;
   rooms: Map<number, RoomInfo> = new Map();
 
+  @Cron(CronExpression.EVERY_MINUTE)
+  async findGhostRoom() {
+    const currentTime = Date.now();
+    const inactiveRoomIds = [];
+
+    this.rooms.forEach((room, roomId) => {
+      if (currentTime - room.lastActivate > 60000) {
+        inactiveRoomIds.push(roomId);
+      }
+    });
+    inactiveRoomIds.forEach(roomId => this.rooms.delete(roomId));
+  }
+
+  async updateLastActiveTime(roomId: number) {
+    const currentTime = Date.now();
+    this.rooms.get(roomId).lastActivate = currentTime;
+  }
+
+
   async verifyToken(client: Socket): Promise<string> {
     let { token } = client.handshake.auth;
     token = token.split(' ')[1];
-    // const token = client.handshake.headers.authorization.split(' ')[1]
     try {
       const { sub: nickname } = await this.jwtService.verify(token);
       return nickname;
@@ -45,20 +72,20 @@ export class GameGateway {
   async handleConnection(client: Socket) {
     try {
       const nickname: string = await this.verifyToken(client);
-      // client.handshake.query의 실제 타입에 따라 타입을 지정합니다.
-      const roomId:string| string[] = client.handshake.query.roomId;
-      const max:string| string[] = client.handshake.query.max;
-      // roomIdParam과 maxParam을 string[] 타입으로 처리합니다.
+      const roomId: string | string[] = client.handshake.query.roomId;
+      const max: string | string[] = client.handshake.query.max;
       const roomIdParam: number = parseInt(Array.isArray(roomId) ? roomId[0] : roomId);
       const maxParam: number = parseInt(Array.isArray(max) ? max[0] : max);
 
 
       const hasRoom: boolean = this.rooms.has(roomIdParam);
       if (!hasRoom) {
-        const data:RoomInfo = {
+        const data: RoomInfo = {
           players: new Map(),
           gameOver: new Set(),
-          max:maxParam
+          max: maxParam,
+          scores: new Map(),
+          lastActivate: Date.now()
         }
         data.players.set(nickname, client.id)
         this.rooms.set(roomIdParam, data);
@@ -68,15 +95,17 @@ export class GameGateway {
       roomInfo.players.set(nickname, client.id)
       client.data = {
         nickname,
-        roomId,
+        roomId: roomIdParam,
       };
-      client.join(`${roomId}`);
-      client.broadcast.to(`${roomId}`).emit('userJoined', nickname);
-      client.emit('myName',nickname)
-      console.log('유저 조인', roomInfo.players.size, roomInfo.players);
+      client.join(`${roomIdParam}`);
+      client.broadcast.to(`${roomIdParam}`).emit('userJoined', nickname);
+      client.emit('myName', nickname)
+      console.log(roomIdParam, '번방 유저 조인', roomInfo.players.size, '명 ', roomInfo.players);
       if (roomInfo.players.size == maxParam) {
-        console.log(roomId,'번방 게임 시작!')
-        this.server.to(`${roomId}`).emit('go', 'GO!');
+        console.log(roomIdParam, '번방 게임 시작!')
+        this.server.to(`${roomIdParam}`).emit('go', 'GO!');
+        this.roomTimers.set(roomIdParam, this.itemTimer(roomIdParam))
+        this.updateLastActiveTime(roomIdParam);
       }
     } catch (e) {
       console.log(e);
@@ -84,22 +113,56 @@ export class GameGateway {
     }
   }
 
+  itemTimer(roomId:number) {
+    return setInterval(() => {
+      const roomSockets = this.server.sockets.adapter.rooms.get(`${roomId}`);
+
+      if (roomSockets) {
+        roomSockets.forEach((socketId) => {
+          const socket = this.server.sockets.sockets.get(socketId);
+          const randomItem: Array<string> = this.randomItems(this.items);
+          if (socket) {
+            console.log(socket.data.nickname, '템 선택해보자~')
+            socket.emit('itemSelectTime', randomItem);
+          }
+        });
+      }
+    }, 30000)
+  }
+
+  randomItems(sourceArray: Array<string>): Array<string> {
+    const arrayCopy = [...sourceArray];
+    const result = [];
+    for (let i = 0; i < 3; i++) {
+      const index = Math.floor(Math.random() * arrayCopy.length);
+      result.push(arrayCopy[index]);
+      arrayCopy.splice(index, 1);
+    }
+
+    return result;
+  }
+
   handleDisconnect(client: Socket) {
-    const {nickname, roomId}:{nickname:string, roomId:number} = client.data;
+    const { nickname, roomId }: { nickname: string, roomId: number } = client.data;
     const hasRoom = this.rooms.has(roomId);
-    let roomInfo:RoomInfo;
+    let roomInfo: RoomInfo;
 
     if (!roomId || !hasRoom) {
       return
     }
     roomInfo = this.rooms.get(roomId);
     roomInfo.players.delete(nickname)
-    if(roomInfo.players.size === 0){
+    if (roomInfo.players.size === 0) {
       this.rooms.delete(roomId);
     }
-    client.emit('event','바윙~^^')
+    client.emit('event', '바윙~^^')
     client.leave(`${roomId}`);
     client.broadcast.to(`${roomId}`).emit('userLeaved', nickname);
+    console.log(nickname, '이 잘 가고~')
+    if(roomInfo.players.size === 0){
+      this.rooms.delete(roomId)
+      clearInterval(this.roomTimers.get(roomId));
+    }
   }
 
   @SubscribeMessage('eventOn')
@@ -107,8 +170,9 @@ export class GameGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() event: KeyFrameEvent,
   ) {
-    const { roomId }:{roomId:number} = client.data;
+    const { roomId }: { roomId: number } = client.data;
     client.broadcast.to(`${roomId}`).emit('eventOn', event);
+    this.updateLastActiveTime(roomId);
   }
 
   @SubscribeMessage('reqWorldInfo')
@@ -118,34 +182,77 @@ export class GameGateway {
   ) {
     console.log(nickname);
     const { roomId } = client.data;
-    const roomInfo:RoomInfo = this.rooms.get(roomId);
-    const target:string = roomInfo.players.get(nickname);
+    const roomInfo: RoomInfo = this.rooms.get(roomId);
+    const target: string = roomInfo.players.get(nickname);
     client.to(target).emit('reqWorldInfo', '정보 내놔');
   }
 
   @SubscribeMessage('resWorldInfo')
-  resWorldInfo() {} // @MessageBody() event: world, // @ConnectedSocket() client: Socket,
+  resWorldInfo() { } // @MessageBody() event: world, // @ConnectedSocket() client: Socket,
 
   @SubscribeMessage('gameOver')
-  gameOver(
-    @ConnectedSocket() client:Socket,
-    @MessageBody() isOver:boolean
-  ){
-    const {roomId, nickname} = client.data
-    const roomInfo = this.rooms.get(roomId)
-    if(isOver){
+  async gameOver(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() isOver: boolean
+  ) {
+    const { roomId, nickname } = client.data
+    const roomInfo: RoomInfo = this.rooms.get(roomId)
+    if (isOver) {
       roomInfo.gameOver.add(nickname)
       console.log(roomInfo.gameOver)
     }
 
-    if(roomInfo.gameOver.size === roomInfo.players.size){
-      console.log('퇴출 시작',roomInfo.gameOver)
+    const score = roomInfo.scores.get(nickname);
+    const { data: result } = await axios.post('http://localhost:3305/user/score', {
+      nickname,
+      score
+    });
+    console.log(`점수 전송~ ${nickname}의 점수 ${score} 결과 : ${result}`)
+
+
+    if (roomInfo.gameOver.size === roomInfo.players.size) {
+      clearInterval(this.roomTimers.get(roomId));
+      console.log('퇴출 시작', roomInfo.gameOver)
       const users = roomInfo.players.values()
-      Array.from(users).forEach((user)=>{
-        const socket:Socket = this.server.sockets.sockets.get(user)
+      Array.from(users).forEach((user) => {
+        const socket: Socket = this.server.sockets.sockets.get(user)
         socket.disconnect()
       })
     }
+  }
+
+  @SubscribeMessage('randomSpawn')
+  randomSpawn(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() block: string
+  ) {
+    const { roomId, nickname } = client.data
+    client.broadcast.to(`${roomId}`).emit('nextBlock', {
+      nickname,
+      block
+    });
+  }
+
+  @SubscribeMessage('updateScore')
+  async updateScore(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() score: number
+  ) {
+    await this.verifyToken(client);
+    const { roomId, nickname } = client.data;
+    const roomInfo = this.rooms.get(roomId);
+    const prevScores = roomInfo.scores.get(nickname);
+    roomInfo.scores.set(nickname, prevScores + score);
+  }
+
+  @SubscribeMessage('item')
+  useItem(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() item: number
+  ) {
+    const { roomId, nickname } = client.data;
+    client.broadcast.to(`${roomId}`).emit('selectedItem', item);
+    console.log(nickname, '<< 아이템 사용', item, '<<<');
   }
 }
 
