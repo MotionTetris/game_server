@@ -18,6 +18,10 @@ type RoomInfo = {
   scores: Map<string, number>;
   lastActivate: number;
 }
+type Timers = {
+  gameTimer: NodeJS.Timeout,
+  itemTimer: NodeJS.Timeout
+}
 
 @WebSocketGateway(3001, {
   cors: {
@@ -27,7 +31,7 @@ type RoomInfo = {
 })
 export class GameGateway {
 
-  private roomTimers: Map<number, NodeJS.Timeout> = new Map();
+  private roomTimers: Map<number,Timers> = new Map();
   private items = [
     "BOMB", "FOG", "FLIP", "ROTATE_RIGHT", "ROTATE_LEFT",
   ];
@@ -106,8 +110,11 @@ export class GameGateway {
       if (roomInfo.players.size == maxParam) {
         console.log(roomIdParam, '번방 게임 시작!');
         this.server.to(`${roomIdParam}`).emit('go', 'GO!');
-        this.roomTimers.set(roomIdParam, this.itemTimer(roomIdParam));
-        this.gameTimer(roomIdParam);
+        const data:Timers = {
+          gameTimer:this.gameTimer(roomIdParam),
+          itemTimer: this.itemTimer(roomIdParam)
+        }
+        this.roomTimers.set(roomIdParam, data);
         this.updateLastActiveTime(roomIdParam);
       }
     } catch (e) {
@@ -117,18 +124,17 @@ export class GameGateway {
   }
 
   gameTimer(roomId: number) {
-    let maxTime = 240;
+    let maxTime = 180;
     const intervalId = setInterval(() => {
       const minutes = Math.floor(maxTime / 60);
       const seconds = maxTime % 60;
 
       // 남은 시간을 MM:SS 형식으로 출력
       const time = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-      console.log(time)
+      console.log(roomId, '번 방', time)
       this.server.to(`${roomId}`).emit('timer', time);
       maxTime -= 1;
       if (maxTime < 0) {
-        clearInterval(intervalId);
         const roomInfo = this.rooms.get(roomId);
         if (roomInfo) {
           const players = Array.from(roomInfo.players.keys());
@@ -136,10 +142,13 @@ export class GameGateway {
             roomInfo.gameOver.add(player);
           })
         }
+        this.roomTimers.delete(roomId);
         this.gameEnd(roomId);
         console.log("Game finished!");
       }
     }, 1000);
+    
+    return intervalId
   }
 
   itemTimer(roomId: number) {
@@ -154,7 +163,7 @@ export class GameGateway {
           const isOver = this.rooms.get(roomId).gameOver.has(nickname)
 
           const randomItem: Array<string> = this.randomItems(this.items);
-          if (socket && !isOver && maxTime > 30) {
+          if (socket && !isOver && maxTime >= 30) {
             console.log(socket.data.nickname, '템 선택해보자~', '남은 시간', maxTime)
             socket.emit('itemSelectTime', randomItem);
           }
@@ -194,7 +203,6 @@ export class GameGateway {
     console.log(nickname, '이 잘 가고~')
     if (roomInfo.players.size === 0) {
       this.rooms.delete(roomId)
-      clearInterval(this.roomTimers.get(roomId));
     }
   }
 
@@ -245,18 +253,19 @@ export class GameGateway {
   gameEnd(roomId: number, nickname?: string) {
     const roomInfo: RoomInfo = this.rooms.get(roomId)
     if (nickname) {
-      roomInfo.gameOver.add(nickname)
-      console.log(roomInfo.gameOver)
+      roomInfo?.gameOver.add(nickname);
+      console.log(roomInfo.gameOver);
     }
 
     if (roomInfo.gameOver.size === roomInfo.players.size) {
-      clearInterval(this.roomTimers.get(roomId));
-      this.server.to(`${roomId}`).emit('gameEnd', true)
-      console.log('퇴출 시작', roomInfo.gameOver)
-      const users = roomInfo.players.values()
+      clearInterval(this.roomTimers.get(roomId).itemTimer);
+      clearInterval(this.roomTimers.get(roomId).gameTimer);
+      this.server.to(`${roomId}`).emit('gameEnd', true);
+      console.log('퇴출 시작', roomInfo.gameOver);
+      const users = roomInfo.players.values();
       Array.from(users).forEach((user) => {
-        const socket: Socket = this.server.sockets.sockets.get(user)
-        socket.disconnect()
+        const socket: Socket = this.server.sockets.sockets.get(user);
+        socket.disconnect();
       })
     }
   }
@@ -266,7 +275,7 @@ export class GameGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() block: string
   ) {
-    const { roomId, nickname } = client.data
+    const { roomId, nickname } = client.data;
     client.broadcast.to(`${roomId}`).emit('nextBlock', {
       nickname,
       block
