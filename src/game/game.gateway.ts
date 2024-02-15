@@ -110,13 +110,11 @@ export class GameGateway {
       if (roomInfo.players.size == maxParam) {
         console.log(roomIdParam, '번방 게임 시작!');
         this.server.to(`${roomIdParam}`).emit('go', 'GO!');
-        if(!this.roomTimers.get(roomIdParam)){
-          const data:Timers = {
-            gameTimer:this.gameTimer(roomIdParam),
-            itemTimer: this.itemTimer(roomIdParam)
-          }
-          this.roomTimers.set(roomIdParam, data);
+        const data:Timers = {
+          gameTimer:this.gameTimer(roomIdParam),
+          itemTimer: this.itemTimer(roomIdParam)
         }
+        this.roomTimers.set(roomIdParam, data);
       }
       this.updateLastActiveTime(roomIdParam);
     } catch (e) {
@@ -203,7 +201,10 @@ export class GameGateway {
     client.leave(`${roomId}`);
     client.broadcast.to(`${roomId}`).emit('userLeaved', nickname);
     console.log(nickname, '이 잘 가고~')
-    if (roomInfo.players.size === 0) {
+    if (roomInfo.players.size === 1) {
+      const user = roomInfo.players.values().next().value;
+      const socket: Socket = this.server.sockets.sockets.get(user);
+      socket.disconnect();
       const roomTimer = this.roomTimers.get(roomId);
       clearInterval(roomTimer.itemTimer);
       clearInterval(roomTimer.gameTimer);
