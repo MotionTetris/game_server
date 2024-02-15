@@ -204,6 +204,10 @@ export class GameGateway {
     client.broadcast.to(`${roomId}`).emit('userLeaved', nickname);
     console.log(nickname, '이 잘 가고~')
     if (roomInfo.players.size === 0) {
+      const roomTimer = this.roomTimers.get(roomId);
+      clearInterval(roomTimer.itemTimer);
+      clearInterval(roomTimer.gameTimer);
+      this.roomTimers.delete(roomId);
       this.rooms.delete(roomId)
     }
   }
@@ -247,8 +251,6 @@ export class GameGateway {
     //   score
     // });
     // console.log(`점수 전송~ ${nickname}의 점수 ${score} 결과 : ${result}`)
-
-
     this.gameEnd(roomId, nickname);
   }
 
