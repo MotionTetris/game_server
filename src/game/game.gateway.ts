@@ -143,7 +143,13 @@ export class GameGateway {
           })
         }
         this.roomTimers.delete(roomId);
-        this.gameEnd(roomId);
+        this.server.to(`${roomId}`).emit('gameEnd', true);
+        console.log('퇴출 시작', roomInfo.gameOver);
+        const users = roomInfo.players.values();
+        Array.from(users).forEach((user) => {
+          const socket: Socket = this.server.sockets.sockets.get(user);
+          socket.disconnect();
+        })
         console.log("Game finished!");
       }
     }, 1000);
