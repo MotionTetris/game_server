@@ -130,7 +130,7 @@ export class GameGateway {
       if (maxTime < 0) {
         clearInterval(intervalId);
         const roomInfo = this.rooms.get(roomId);
-        if (roomInfo.players) {
+        if (roomInfo) {
           const players = Array.from(roomInfo.players.keys());
           players.forEach((player) => {
             roomInfo.gameOver.add(player);
