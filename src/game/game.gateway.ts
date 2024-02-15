@@ -78,8 +78,9 @@ export class GameGateway {
       const maxParam: number = parseInt(Array.isArray(max) ? max[0] : max);
 
 
-      const hasRoom: boolean = this.rooms.has(roomIdParam);
-      if (!hasRoom) {
+      let roomInfo:RoomInfo|undefined = this.rooms.get(roomIdParam);
+      console.log(roomInfo)
+      if (!roomInfo) {
         const data: RoomInfo = {
           players: new Map(),
           gameOver: new Set(),
@@ -89,9 +90,10 @@ export class GameGateway {
         }
         data.players.set(nickname, client.id)
         this.rooms.set(roomIdParam, data);
+        console.log('방 생성함::',this.rooms.get(roomIdParam));
       }
 
-      const roomInfo: RoomInfo = this.rooms.get(roomIdParam);
+      roomInfo = this.rooms.get(roomIdParam);
       roomInfo.players.set(nickname, client.id);
       client.data = {
         nickname,
