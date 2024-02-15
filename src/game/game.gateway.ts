@@ -197,13 +197,13 @@ export class GameGateway {
     if (roomInfo.players.size === 0) {
       this.rooms.delete(roomId);
     }
-    client.emit('event', '바윙~^^')
     client.leave(`${roomId}`);
     client.broadcast.to(`${roomId}`).emit('userLeaved', nickname);
     console.log(nickname, '이 잘 가고~')
     if (roomInfo.players.size === 1) {
       const user = roomInfo.players.values().next().value;
       const socket: Socket = this.server.sockets.sockets.get(user);
+      socket.emit('gameEnd', true)
       socket.disconnect();
       const roomTimer = this.roomTimers.get(roomId);
       clearInterval(roomTimer.itemTimer);
