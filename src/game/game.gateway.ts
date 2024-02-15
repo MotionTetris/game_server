@@ -110,13 +110,15 @@ export class GameGateway {
       if (roomInfo.players.size == maxParam) {
         console.log(roomIdParam, '번방 게임 시작!');
         this.server.to(`${roomIdParam}`).emit('go', 'GO!');
-        const data:Timers = {
-          gameTimer:this.gameTimer(roomIdParam),
-          itemTimer: this.itemTimer(roomIdParam)
+        if(!this.roomTimers.get(roomIdParam)){
+          const data:Timers = {
+            gameTimer:this.gameTimer(roomIdParam),
+            itemTimer: this.itemTimer(roomIdParam)
+          }
+          this.roomTimers.set(roomIdParam, data);
         }
-        this.roomTimers.set(roomIdParam, data);
-        this.updateLastActiveTime(roomIdParam);
       }
+      this.updateLastActiveTime(roomIdParam);
     } catch (e) {
       console.log(e);
       client.disconnect();
