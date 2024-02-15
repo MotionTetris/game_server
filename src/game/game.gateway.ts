@@ -194,16 +194,13 @@ export class GameGateway {
     }
     roomInfo = this.rooms.get(roomId);
     roomInfo.players.delete(nickname)
-    if (roomInfo.players.size === 0) {
-      this.rooms.delete(roomId);
-    }
     client.leave(`${roomId}`);
     client.broadcast.to(`${roomId}`).emit('userLeaved', nickname);
     console.log(nickname, '이 잘 가고~')
     if (roomInfo.players.size === 1) {
       const user = roomInfo.players.values().next().value;
       const socket: Socket = this.server.sockets.sockets.get(user);
-      socket.emit('gameEnd', true)
+      socket.emit('userRun', true)
       socket.disconnect();
       const roomTimer = this.roomTimers.get(roomId);
       clearInterval(roomTimer.itemTimer);
@@ -263,8 +260,8 @@ export class GameGateway {
     }
 
     if (roomInfo.gameOver.size === roomInfo.players.size) {
-      clearInterval(this.roomTimers.get(roomId).itemTimer);
-      clearInterval(this.roomTimers.get(roomId).gameTimer);
+      clearInterval(this.roomTimers.get(roomId)?.itemTimer);
+      clearInterval(this.roomTimers.get(roomId)?.gameTimer);
       this.server.to(`${roomId}`).emit('gameEnd', true);
       console.log('퇴출 시작', roomInfo.gameOver);
       const users = roomInfo.players.values();
