@@ -121,9 +121,6 @@ export class GameGateway {
   }
 
   private startTimers(roomId: number) {
-    // if(this.roomTimers.get(roomId)){
-    //   return;
-    // }
     const data:Timers = {
       gameTimer: this.mainTimer(roomId),
     }
@@ -150,8 +147,7 @@ export class GameGateway {
       // if( maxTime % itemTime === 0 && maxTime >29){
       //   this.startItemTimer(roomId,roomSockets);
       // }
-
-      if (maxTime < 0 || !this.rooms.get(roomId)) {
+      if (maxTime < 0) {
         const roomInfo = this.rooms.get(roomId);
         this.roomTimers.delete(roomId);
         this.broadcastToRoom(roomId, "gameEnd", true)
