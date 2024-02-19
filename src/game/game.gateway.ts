@@ -181,6 +181,7 @@ export class GameGateway {
       const interval = roomInfo.userTimers.size < 1 ? 30000 : 40000;
       const timer = setInterval(() => {
         let maxCount = 180;
+        maxCount -= interval;
         if (roomInfo.gameOver.has(nickname) || !this.rooms.get(roomId)) {
           clearInterval(timer);
           return;
@@ -191,7 +192,6 @@ export class GameGateway {
         const randomItem = this.randomItems([...this.items]);
         console.log(`${nickname}에게 아이템 선택 시간!`);
         socket.emit('itemSelectTime', randomItem);
-        maxCount -= interval;
       }, interval);
   
       roomInfo.userTimers.set(nickname, timer);
@@ -338,7 +338,6 @@ export class GameGateway {
     @ConnectedSocket() client:Socket,
   ){
     const roomId = parseInt(client.data.roomId);
-    const room = this.rooms.get(roomId);
     this.startTimers(roomId);
     this.updateLastActiveTime(roomId);
   }
