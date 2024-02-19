@@ -121,7 +121,7 @@ export class GameGateway {
   }
 
   private startTimers(roomId: number) {
-    if(this.roomTimers.get(roomId).gameTimer){
+    if(this.roomTimers.get(roomId)){
       return;
     }
     const data:Timers = {
