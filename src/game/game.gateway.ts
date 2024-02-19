@@ -121,6 +121,9 @@ export class GameGateway {
   }
 
   private startTimers(roomId: number) {
+    if(this.roomTimers.get(roomId)){
+      return
+    }
     const data:Timers = {
       gameTimer: this.mainTimer(roomId),
     }
@@ -168,6 +171,7 @@ export class GameGateway {
 
   private startItemTimer(roomId: number) {
     const roomInfo = this.rooms.get(roomId)
+    console.log("startItemTimer:::",roomInfo)
     roomInfo.players.forEach(( socketId, nickname) => {
       const socket = this.server.sockets.sockets.get(socketId);
       if (!socket) return;
@@ -217,11 +221,11 @@ export class GameGateway {
         nickname,
         roomId: roomIdParam,
       };
-      this.setupPlayer(room, client);
-      console.log(`HandleConnection: room 생성`,this.rooms.get(roomIdParam))
+      console.log(`handleConnection: room 생성`,this.rooms.get(roomIdParam))
       client.join(`${roomIdParam}`);
+      this.setupPlayer(room, client);
+      console.log('handleConnection:',roomId, '번방 유저 join~ 현재', room.players.size, '명 ', room.players); 
       this.broadcastToRoom(roomIdParam,'userJoined',nickname);
-      console.log('HandleConnection:',roomIdParam, '번방 유저 join~ 현재', room.players.size, '명 ', room.players); 
       this.checkStartGame(roomIdParam, room);
       this.updateLastActiveTime(roomIdParam);
     } catch (e) {
@@ -239,7 +243,6 @@ export class GameGateway {
     client.leave(`${roomId}`);
     client.broadcast.to(`${roomId}`).emit('userLeaved', nickname);
     console.log('HandDisconnect:',nickname, '이 잘 가고~');
-    console.log(roomInfo)
     console.log('HandDisconnect: roomInfo.players=',roomInfo?.players);   
     roomInfo?.players.delete(nickname)
     if (roomInfo?.players.size === 1) {
@@ -269,7 +272,6 @@ export class GameGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() nickname: string,
   ) {
-    console.log(nickname);
     const { roomId } = client.data;
     const roomInfo: RoomInfo = this.rooms.get(roomId);
     const target: string = roomInfo.players.get(nickname);
@@ -335,8 +337,10 @@ export class GameGateway {
   gamePlay(
     @ConnectedSocket() client:Socket,
   ){
-    const {roomId}:{roomId:number} = client.data;
+    const roomId = parseInt(client.data.roomId);
+    const room = this.rooms.get(roomId);
     this.startTimers(roomId);
+    this.updateLastActiveTime(roomId);
   }
 }
 
