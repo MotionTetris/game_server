@@ -117,7 +117,6 @@ export class GameGateway {
     if (room.players.size === room.max) {
       console.log('checkStartGame:',roomId, '번방 게임 시작!');
       this.broadcastToRoom(roomId, 'go', 'GO!');
-      this.startTimers(roomId);
     }
   }
 
@@ -331,6 +330,14 @@ export class GameGateway {
     const { roomId, nickname } = client.data;
     client.broadcast.to(`${roomId}`).emit('selectedItem', item);
     console.log('Item:', nickname, '<< 아이템 사용', item, '<<<');
+  }
+
+  @SubscribeMessage('playOn')
+  gamePlay(
+    @ConnectedSocket() client:Socket,
+  ){
+    const {roomId}:{roomId:number} = client.data;
+    this.startTimers(roomId);
   }
 }
 
