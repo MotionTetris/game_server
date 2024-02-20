@@ -153,7 +153,7 @@ export class GameGateway {
       // if( maxTime % itemTime === 0 && maxTime >29){
       //   this.startItemTimer(roomId,roomSockets);
       // }
-      if (maxTime < 0) {
+      if (maxTime < 0 || !this.rooms.get(roomId)) {
         const roomInfo = this.rooms.get(roomId);
         this.roomTimers.delete(roomId);
         this.broadcastToRoom(roomId, "gameEnd", true)
@@ -249,7 +249,7 @@ export class GameGateway {
     console.log('HandDisconnect:',nickname, '이 잘 가고~');
     console.log('HandDisconnect: roomInfo.players=',roomInfo?.players);   
     roomInfo?.players.delete(nickname)
-    if (roomInfo?.players.size === 1) {
+    if (roomInfo?.players.size <= 1) {
       console.log('HandDisconnect: 1명 나감',roomInfo.players);
       this.broadcastToRoom(roomId, "gameEnd", true);
       const user = roomInfo.players.values().next().value;
