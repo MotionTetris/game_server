@@ -121,13 +121,16 @@ export class GameGateway {
   }
 
   private startTimers(roomId: number) {
+    const room = this.rooms.get(roomId);
     if(this.roomTimers.get(roomId)){
       return
     }
     const data:Timers = {
       gameTimer: this.mainTimer(roomId),
     }
-    this.startItemTimer(roomId);
+    if(room.max > 1 ){
+      this.startItemTimer(roomId);
+    }
     const timer = this.roomTimers.get(roomId)?.gameTimer;
     if(timer){
       clearInterval(timer);
