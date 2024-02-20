@@ -179,8 +179,8 @@ export class GameGateway {
       const isOver = roomInfo.gameOver.has(nickname);
       if (isOver) return;
       const interval = roomInfo.userTimers.size < 1 ? 30000 : 40000;
+      let maxCount = 180;
       const timer = setInterval(() => {
-        let maxCount = 180;
         maxCount -= interval/1000;
         if (roomInfo.gameOver.has(nickname) || !this.rooms.get(roomId)) {
           console.log(nickname, '타이머 종료')
