@@ -33,7 +33,7 @@ export class GameGateway {
   private rooms: Map<number, RoomInfo> = new Map();
   private roomTimers: Map<number,Timers> = new Map();
   private items = [
-    "BOMB", "FOG", "FLIP", "ROTATE_RIGHT", "ROTATE_LEFT",
+    "BOMB", "FOG", "FLIP", "ROCK"
   ];
 
   constructor(private jwtService: JwtService) {}
@@ -46,8 +46,8 @@ export class GameGateway {
   async findGhostRoom() {
     const currentTime = Date.now();
     this.rooms.forEach((room, roomId) => {
-      if (currentTime - room.lastActivate >= 10000) {
-        // this.deleteRoom(roomId);
+      if (currentTime - room.lastActivate >= 30000) {
+        this.deleteRoom(roomId);
       }
     });
   }
@@ -149,10 +149,6 @@ export class GameGateway {
       console.log('mainTimer:',roomId, '번 방', time)
       this.broadcastToRoom(roomId, 'timer', time);
       maxTime -= 1;
-
-      // if( maxTime % itemTime === 0 && maxTime >29){
-      //   this.startItemTimer(roomId,roomSockets);
-      // }
       if (maxTime < 0 || !this.rooms.get(roomId)) {
         const roomInfo = this.rooms.get(roomId);
         this.roomTimers.delete(roomId);
@@ -241,9 +237,6 @@ export class GameGateway {
   handleDisconnect(client: Socket) {
     const { nickname, roomId } = client.data;
     const roomInfo = this.rooms.get(parseInt(roomId));
-    // if (!this.rooms.has(roomId)) { 
-    //   return; 
-    // }
     client.leave(`${roomId}`);
     client.broadcast.to(`${roomId}`).emit('userLeaved', nickname);
     console.log('HandDisconnect:',nickname, '이 잘 가고~');
