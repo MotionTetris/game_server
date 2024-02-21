@@ -36,22 +36,21 @@ export class GameGateway {
     "BOMB", "FOG", "FLIP", "ROCK"
   ];
 
-  private userNumber:number = 1;
   constructor(private jwtService: JwtService) {}
 
   @WebSocketServer()
   server: Server;
   
 
-  // @Cron(CronExpression.EVERY_10_SECONDS)
-  // async findGhostRoom() {
-  //   const currentTime = Date.now();
-  //   this.rooms.forEach((room, roomId) => {
-  //     if (currentTime - room.lastActivate >= 30000) {
-  //       this.deleteRoom(roomId);
-  //     }
-  //   });
-  // }
+  @Cron(CronExpression.EVERY_10_SECONDS)
+  async findGhostRoom() {
+    const currentTime = Date.now();
+    this.rooms.forEach((room, roomId) => {
+      if (currentTime - room.lastActivate >= 30000) {
+        this.deleteRoom(roomId);
+      }
+    });
+  }
 
   private deleteRoom(roomId: number) {
     console.log('deleteRoom:',roomId,'번 방 삭제!!!!')
@@ -150,6 +149,7 @@ export class GameGateway {
       console.log('mainTimer:',roomId, '번 방', time)
       this.broadcastToRoom(roomId, 'timer', time);
       maxTime -= 1;
+
       if (maxTime < 0 || !this.rooms.get(roomId)) {
         const roomInfo = this.rooms.get(roomId);
         this.roomTimers.delete(roomId);
@@ -212,8 +212,7 @@ export class GameGateway {
 
   async handleConnection(client: Socket) {
     try {
-      // const nickname: string = await this.verifyToken(client);
-      const nickname = this.userNumber++;
+      const nickname: string = await this.verifyToken(client);
       const roomId: string | string[] = client.handshake.query.roomId;
       const max: string | string[] = client.handshake.query.max;
       const roomIdParam: number = this.parseQueryParam(roomId);
@@ -315,7 +314,7 @@ export class GameGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() score: number
   ) {
-    // await this.verifyToken(client);
+    await this.verifyToken(client);
     const { roomId, nickname } = client.data;
     const roomInfo = this.rooms.get(roomId);
     const prevScores = roomInfo.scores.get(nickname);
