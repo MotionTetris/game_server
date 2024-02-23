@@ -171,7 +171,6 @@ export class GameGateway {
 
   private startItemTimer(roomId: number) {
     const roomInfo = this.rooms.get(roomId)
-    console.log("startItemTimer:::",roomInfo)
     roomInfo.players.forEach(( socketId, nickname) => {
       const socket = this.server.sockets.sockets.get(socketId);
       if (!socket) return;
@@ -193,6 +192,7 @@ export class GameGateway {
         const randomItem = this.randomItems([...this.items]);
         console.log(`${nickname}에게 아이템 선택 시간!`);
         socket.emit('itemSelectTime', randomItem);
+        socket.broadcast.to(roomId.toString()).emit('otherItem', true);
       }, interval);
   
       roomInfo.userTimers.set(nickname, timer);
@@ -338,6 +338,14 @@ export class GameGateway {
     const roomId = parseInt(client.data.roomId);
     this.startTimers(roomId);
     this.updateLastActiveTime(roomId);
+  }
+
+  @SubscribeMessage('itemEnd')
+  itemEnd(
+    @ConnectedSocket() client:Socket,
+  ){
+    const roomId = client.data.roomId;
+    client.broadcast.to(roomId.toString()).emit('itemEnd');
   }
 }
 
