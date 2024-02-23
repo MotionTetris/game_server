@@ -52,6 +52,10 @@ export class GameGateway {
     });
   }
 
+  private sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
   private deleteRoom(roomId: number) {
     console.log('deleteRoom:',roomId,'번 방 삭제!!!!')
     this.rooms.delete(roomId);
@@ -99,6 +103,8 @@ export class GameGateway {
     this.rooms.set(roomId, room);
     return room;
   }
+
+
 
   private setupPlayer(room: RoomInfo, client: Socket) {
     const {roomId, nickname } = client.data
@@ -179,7 +185,7 @@ export class GameGateway {
       if (isOver) return;
       const interval = roomInfo.userTimers.size < 1 ? 30000 : 40000;
       let maxCount = 180;
-      const timer = setInterval(() => {
+      const timer = setInterval(async () => {
         maxCount -= interval/1000;
         if (roomInfo.gameOver.has(nickname) || !this.rooms.get(roomId)) {
           console.log(nickname, '타이머 종료')
@@ -192,6 +198,7 @@ export class GameGateway {
         const randomItem = this.randomItems([...this.items]);
         console.log(`${nickname}에게 아이템 선택 시간!`);
         socket.emit('itemSelectTime', randomItem);
+        await this.sleep(1000);
         socket.broadcast.to(roomId.toString()).emit('otherItem', true);
       }, interval);
   
@@ -341,10 +348,11 @@ export class GameGateway {
   }
 
   @SubscribeMessage('itemEnd')
-  itemEnd(
+  async itemEnd(
     @ConnectedSocket() client:Socket,
   ){
     const roomId = client.data.roomId;
+    await this.sleep(1000);
     client.broadcast.to(roomId.toString()).emit('itemEnd');
   }
 }
